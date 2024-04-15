@@ -1,11 +1,43 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { remult, UserInfo } from 'remult'
 import App from './App'
+import { jwtDecode } from 'jwt-decode'
+
+const AUTH_TOKEN_KEY = 'authToken'
+let authToken: string | null = null
+
+remult.apiClient.httpClient = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => {
+  return fetch(input, {
+    ...init,
+    headers: authToken
+      ? {
+          ...init?.headers,
+          authorization: 'Bearer ' + authToken,
+        }
+      : init?.headers,
+
+    cache: 'no-store',
+  })
+}
 
 export default function Auth() {
   const [currentUser, setCurrentUser] = useState<UserInfo>()
   const [showSignIn, setShowSignIn] = useState(false)
-  remult.user = currentUser
+
+  function setAuthToken(token: string | null) {
+    authToken = token
+    if (token) {
+      remult.user = jwtDecode(token)
+      sessionStorage.setItem(AUTH_TOKEN_KEY, token)
+    } else {
+      remult.user = undefined
+      sessionStorage.removeItem(AUTH_TOKEN_KEY)
+    }
+    setCurrentUser(remult.user)
+  }
 
   async function signIn(f: FormEvent<HTMLFormElement>) {
     f.preventDefault()
@@ -17,23 +49,16 @@ export default function Auth() {
       },
     })
     if (result.ok) {
-      setCurrentUser(await result.json())
+      setAuthToken(await result.json())
       setShowSignIn(false)
     } else alert(await result.json())
   }
   async function signOut() {
-    await fetch('/api/signOut', {
-      method: 'POST',
-    })
-    setCurrentUser(undefined)
+    setAuthToken(null)
     setShowSignIn(true)
   }
   useEffect(() => {
-    fetch('/api/currentUser')
-      .then((r) => r.json())
-      .then(async (currentUserFromServer) => {
-        setCurrentUser(currentUserFromServer)
-      })
+    setAuthToken(sessionStorage.getItem(AUTH_TOKEN_KEY))
   }, [])
 
   if (showSignIn)
