@@ -1,30 +1,23 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Task } from '../model/Task'
+import { repo } from 'remult'
+
+const taskRepo = repo(Task)
 
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Setup', completed: true },
-    { id: '2', title: 'Entities', completed: false },
-    { id: '3', title: 'CRUD Operations', completed: false },
-    { id: '4', title: 'Paging, Sorting and Filtering', completed: false },
-    { id: '5', title: 'Live Query', completed: false },
-    { id: '6', title: 'Validation', completed: false },
-    { id: '7', title: 'Updating multiple tasks', completed: false },
-    { id: '8', title: 'Database', completed: false },
-    { id: '9', title: 'Authentication and Authorization', completed: false },
-    { id: '10', title: 'Deployment', completed: false },
-  ])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [newTaskTitle, setNewTaskTitle] = useState('')
+
+  useEffect(() => {
+    return taskRepo.liveQuery().subscribe((info) => setTasks(info.applyChanges))
+  }, [])
 
   async function addTask(e: FormEvent) {
     e.preventDefault()
     try {
-      const newTask = {
+      const newTask = await taskRepo.insert({
         title: newTaskTitle,
-        completed: false,
-        id: (tasks.length + 1).toString(),
-        createdAt: new Date(),
-      }
+      })
       setTasks([...tasks, newTask])
       setNewTaskTitle('')
     } catch (error: any) {
@@ -33,12 +26,13 @@ export default function App() {
   }
 
   async function setCompleted(task: Task, completed: boolean) {
-    const updatedTask = { ...task, completed }
+    const updatedTask = await taskRepo.save({ ...task, completed })
     setTasks((tasks) => tasks.map((t) => (t === task ? updatedTask : t)))
   }
 
   async function deleteTask(task: Task) {
     try {
+      await taskRepo.delete(task)
       setTasks(tasks.filter((t) => t !== task))
     } catch (error: any) {
       alert(error.message)
